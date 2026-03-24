@@ -1,12 +1,10 @@
-# 🧠 Causal UI App
+# 🧠 Causal Oncology Analysis App
 
 Aplicação em **Python + Streamlit** para construção de pipelines completos de análise causal em dados genômicos:
 
 - 📊 Pré-processamento de dados (MAF + clínico)
 - 🔗 Descoberta causal (PC, GES, py-tetrad)
 - 📈 Inferência causal (DoWhy + refutações)
-
-A aplicação substitui configurações estáticas (`config.py`) por uma **interface interativa**, permitindo explorar diferentes cenários sem alterar código.
 
 ---
 
