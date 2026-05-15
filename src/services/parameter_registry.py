@@ -3,6 +3,25 @@ from __future__ import annotations
 from src.domain.models import AlgorithmSpec, ParameterSchema
 
 
+# Conjunto de testes de independência condicional suportados pela causal-learn
+# para algoritmos baseados em restrições (PC, FCI). Cada teste é apropriado
+# para um tipo de dado diferente:
+#   - "fisherz":     ótimo para dados Gaussianos contínuos.
+#   - "chisq":       para variáveis puramente categóricas (e.g. dados
+#                    discretizados em bins, como em Ramos et al. 2024).
+#   - "gsq":         G-squared (likelihood ratio); alternativa ao chisq.
+#   - "kci":         kernel-based, captura dependências não-lineares; cúbico
+#                    no tamanho da amostra, lento em datasets grandes.
+#   - "mv_fisherz":  variante do Fisher-Z tolerante a valores faltantes.
+#
+# Atenção: o backend py-tetrad NÃO aplica automaticamente este parâmetro
+# (usa seu próprio default interno). Para escolha do teste com fidelidade,
+# o fallback causal-learn é o caminho garantido. Esta lista cobre o que o
+# causal-learn aceita; ver
+# https://causal-learn.readthedocs.io/en/latest/search_methods_index/Constraint-based%20causal%20discovery%20methods/PC.html
+_INDEP_TEST_OPTIONS = ["fisherz", "chisq", "gsq", "kci", "mv_fisherz"]
+
+
 DISCOVERY_ALGORITHMS = [
     AlgorithmSpec(
         key="pc",
@@ -15,7 +34,7 @@ DISCOVERY_ALGORITHMS = [
             ParameterSchema("alpha", "Alpha", "float", 0.05, min_value=0.0001, max_value=1.0, step=0.001),
             ParameterSchema("stable", "Stable", "bool", True),
             ParameterSchema("max_k", "Max K", "int", 3, min_value=1, max_value=10, step=1),
-            ParameterSchema("indep_test", "Independence test", "select", "fisherz", options=["fisherz"]),
+            ParameterSchema("indep_test", "Independence test", "select", "fisherz", options=_INDEP_TEST_OPTIONS),
         ],
     ),
     AlgorithmSpec(
@@ -48,7 +67,7 @@ DISCOVERY_ALGORITHMS = [
         description="Fast Causal Inference for latent confounding scenarios.",
         parameters=[
             ParameterSchema("alpha", "Alpha", "float", 0.05, min_value=0.0001, max_value=1.0, step=0.001),
-            ParameterSchema("indep_test", "Independence test", "select", "fisherz", options=["fisherz"]),
+            ParameterSchema("indep_test", "Independence test", "select", "fisherz", options=_INDEP_TEST_OPTIONS),
         ],
     ),
     AlgorithmSpec(
@@ -128,17 +147,41 @@ REFUTERS = [
 REFUTER_SPECS = {
     "placebo_treatment_refuter": [
         ParameterSchema("placebo_type", "Placebo type", "select", "permute", options=["permute", "Random Data"]),
-        ParameterSchema("num_simulations", "Number of simulations", "int", 100, min_value=1, max_value=5000, step=1),
+        # Default reduzido de 100 → 30 simulações. Com 30, p-value tem precisão
+        # ~5% (suficiente para veredicto qualitativo de robustez), e a
+        # alocação de memória cai 70%. Importante para evitar SIGSEGV em
+        # libarrow.so quando muitos pares são avaliados em sequência.
+        ParameterSchema("num_simulations", "Number of simulations", "int", 30, min_value=1, max_value=5000, step=1),
     ],
     "random_common_cause": [
-        ParameterSchema("num_simulations", "Number of simulations", "int", 100, min_value=1, max_value=5000, step=1),
+        ParameterSchema("num_simulations", "Number of simulations", "int", 30, min_value=1, max_value=5000, step=1),
     ],
     "data_subset_refuter": [
         ParameterSchema("subset_fraction", "Subset fraction", "float", 0.8, min_value=0.1, max_value=0.99, step=0.01),
-        ParameterSchema("num_simulations", "Number of simulations", "int", 100, min_value=1, max_value=5000, step=1),
+        ParameterSchema("num_simulations", "Number of simulations", "int", 30, min_value=1, max_value=5000, step=1),
     ],
     "add_unobserved_common_cause": [
-        ParameterSchema("confounders_effect_on_treatment", "Effect on treatment", "float", 0.1, min_value=0.0, max_value=10.0, step=0.1),
-        ParameterSchema("confounders_effect_on_outcome", "Effect on outcome", "float", 0.1, min_value=0.0, max_value=10.0, step=0.1),
+        # Estes parâmetros DEVEM bater com a API do DoWhy. Vide
+        # https://www.pywhy.org/dowhy/.../add_unobserved_common_cause:
+        #   - confounders_effect_on_* é STRING ("linear" ou "binary_flip"),
+        #     descreve a forma do efeito (regressão para contínuo, flip para binário).
+        #   - effect_strength_on_* é FLOAT, parâmetro da intensidade (coeficiente
+        #     de regressão para "linear", probabilidade de flip para "binary_flip").
+        ParameterSchema(
+            "confounders_effect_on_treatment", "Effect form on treatment",
+            "select", "linear", options=["linear", "binary_flip"],
+        ),
+        ParameterSchema(
+            "confounders_effect_on_outcome", "Effect form on outcome",
+            "select", "linear", options=["linear", "binary_flip"],
+        ),
+        ParameterSchema(
+            "effect_strength_on_treatment", "Effect strength on treatment",
+            "float", 0.1, min_value=0.0, max_value=10.0, step=0.01,
+        ),
+        ParameterSchema(
+            "effect_strength_on_outcome", "Effect strength on outcome",
+            "float", 0.1, min_value=0.0, max_value=10.0, step=0.01,
+        ),
     ],
 }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import os
 import re
 import tempfile
@@ -30,7 +31,39 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def read_table(path: os.PathLike | str, preferred_sep: str = "\t", usecols=None, skiprows: int = 0) -> pd.DataFrame:
+def detect_separator(path: os.PathLike | str, preferred_sep: str | None = None) -> str:
+    path = Path(path)
+
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        sample = f.read(16384)
+
+    if preferred_sep and preferred_sep in sample:
+        return preferred_sep
+
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters="\t,;|")
+        return dialect.delimiter
+    except Exception:
+        pass
+
+    candidates = {
+        "\t": sample.count("\t"),
+        ",": sample.count(","),
+        ";": sample.count(";"),
+        "|": sample.count("|"),
+    }
+
+    best = max(candidates, key=candidates.get)
+    return best if candidates[best] > 0 else ","
+
+
+def read_table(
+    path: os.PathLike | str,
+    preferred_sep: str | None = "\t",
+    usecols=None,
+    skiprows: int = 0,
+    nrows: int | None = None,
+) -> pd.DataFrame:
     path = os.fspath(path)
 
     def _read(sep, engine=None):
@@ -43,28 +76,42 @@ def read_table(path: os.PathLike | str, preferred_sep: str = "\t", usecols=None,
             dtype=str,
             usecols=usecols,
             skiprows=skiprows,
+            nrows=nrows,
         )
 
-    df = normalize_columns(_read(preferred_sep))
-    if df.shape[1] <= 1:
+    detected_sep = detect_separator(path, preferred_sep=preferred_sep)
+
+    read_attempts = [
+        (detected_sep, None),
+        ("\t", None),
+        (",", None),
+        (";", None),
+        ("|", None),
+        (None, "python"),
+    ]
+
+    best_df: pd.DataFrame | None = None
+
+    for sep, engine in read_attempts:
         try:
-            df2 = normalize_columns(_read(sep=None, engine="python"))
-            if df2.shape[1] > df.shape[1]:
-                df = df2
+            df = normalize_columns(_read(sep=sep, engine=engine))
         except Exception:
-            pass
-    if df.shape[1] <= 1:
-        try:
-            df3 = normalize_columns(_read(sep=","))
-            if df3.shape[1] > df.shape[1]:
-                df = df3
-        except Exception:
-            pass
-    return df
+            continue
+
+        if best_df is None or df.shape[1] > best_df.shape[1]:
+            best_df = df
+
+        if df.shape[1] > 1:
+            return df
+
+    if best_df is None:
+        raise ValueError(f"Não foi possível ler a tabela: {path}")
+
+    return best_df
 
 
 def inspect_table(path: os.PathLike | str, max_rows: int = 5) -> tuple[pd.DataFrame, list[str]]:
-    df = read_table(path)
+    df = read_table(path, nrows=max_rows)
     return df.head(max_rows), list(df.columns)
 
 

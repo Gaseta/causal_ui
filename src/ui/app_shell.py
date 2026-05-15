@@ -6,15 +6,13 @@ from src.ui import discovery_page, inference_page, preprocessing_page
 from src.ui.state import build_runtime_paths, init_session_state
 from src.ui.styles import apply_global_styles
 
-
-
 def render_app() -> None:
-    st.set_page_config(page_title="Causal Discovery & Inference UI", layout="wide")
+    st.set_page_config(page_title="CausalPathExplorer", layout="wide")
     apply_global_styles()
     init_session_state()
     paths = build_runtime_paths()
 
-    st.title("Causal Discovery & Inference UI")
+    st.title("CausalPathExplorer")
     st.caption("Aplicação em Streamlit para pré-processamento, descoberta causal e inferência causal, organizada em etapas e conectada ao backend Python.")
 
     with st.sidebar:

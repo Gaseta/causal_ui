@@ -81,6 +81,11 @@ class PreprocessingConfig:
     maf_skiprows_candidates: List[int] = field(default_factory=lambda: [1, 0])
     super_pathways_names: Optional[List[str]] = None
     id_columns: List[str] = field(default_factory=lambda: ["PATIENT_ID", "SAMPLE_ID"])
+    row_filters_sample: Dict[str, List[str]] = field(default_factory=dict)
+    row_filters_patient: Dict[str, List[str]] = field(default_factory=dict)
+    drop_undefined_categorical: bool = True
+    pathway_value_strategy: str = "fisher_dense"
+    coverage_min_fraction: float = 0.80
 
 
 @dataclass(slots=True)

@@ -13,6 +13,7 @@ SESSION_DEFAULTS = {
     "discovery_result": None,
     "inference_result": None,
     "ui_messages": [],
+    "preprocess_progress_messages": [],
 }
 
 
